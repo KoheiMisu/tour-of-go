@@ -4,7 +4,7 @@ import (
 	"golang.org/x/tour/pic"
 )
 
-func Pic(dx, dy int) [][]uint8  {
+func Pic(dx, dy int) [][]uint8 {
 	// 長さdyのsliceを作る
 	image := make([][]uint8, dy)
 
@@ -13,9 +13,9 @@ func Pic(dx, dy int) [][]uint8  {
 	for y := range image {
 		image[y] = make([]uint8, dx)
 	}
-	
+
 	for y := 0; y < dy; y++ {
-		for x :=0; x < dx; x++ {
+		for x := 0; x < dx; x++ {
 			image[y][x] = uint8(x)
 		}
 	}
@@ -24,6 +24,6 @@ func Pic(dx, dy int) [][]uint8  {
 
 }
 
-func main()  {
+func main() {
 	pic.Show(Pic)
 }
