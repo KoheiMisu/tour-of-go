@@ -25,4 +25,8 @@ func (i *Image) At(x, y int) color.Color {
 func main() {
 	m := new(Image)
 	pic.ShowImage(m)
+
+	// 上記のようにポインタのレシーバでは
+	// m := Image{} とやるとmはポインタ型ではないのでレシーバとして認識されない
+	// m := new(Type) か m := &Image{}でポインタを受け取るようにする
 }
