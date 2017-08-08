@@ -2,7 +2,27 @@ package main
 
 import (
 	"fmt"
+	"sync"
 )
+
+// value struct
+type FetchedUrl struct {
+	url map[string]bool
+	mux sync.Mutex
+}
+
+func (f *FetchedUrl) Add(url string) {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	f.url[url] = true
+}
+
+func (f FetchedUrl) Exists(url string) bool {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	// keyの値がない時にはboolの初期値であるfalseが返る
+	return f.url[url]
+}
 
 type Fetcher interface {
 	// Fetch returns the body of URL and
@@ -16,6 +36,9 @@ func Crawl(url string, depth int, fetcher Fetcher) {
 	// TODO: Fetch URLs in parallel.
 	// TODO: Don't fetch the same URL twice.
 	// This implementation doesn't do either:
+
+	// cacheが存在すればリクエストを送らない
+
 	if depth <= 0 {
 		return
 	}
