@@ -2,7 +2,31 @@ package main
 
 import (
 	"fmt"
+	"sync"
 )
+
+/**
+Todo 実際に巡回可能なcrawlerをつくってみる
+*/
+
+// value struct
+type FetchedUrl struct {
+	url map[string]bool
+	mux sync.Mutex
+}
+
+func (f *FetchedUrl) Add(url string) {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	f.url[url] = true
+}
+
+func (f FetchedUrl) Exists(url string) bool {
+	f.mux.Lock()
+	defer f.mux.Unlock()
+	// keyの値がない時にはboolの初期値であるfalseが返る
+	return f.url[url]
+}
 
 type Fetcher interface {
 	// Fetch returns the body of URL and
@@ -10,56 +34,40 @@ type Fetcher interface {
 	Fetch(url string) (body string, urls []string, err error)
 }
 
-type result struct {
-	url, body string
-	urls      []string
-	err       error
-	depth     int
-}
-
 // Crawl uses fetcher to recursively crawl
 // pages starting with url, to a maximum of depth.
-func Crawl(url string, depth int, fetcher Fetcher) {
-	results := make(chan *result)
-	fetched := make(map[string]bool)
-	fetch := func(url string, depth int) {
-		body, urls, err := fetcher.Fetch(url)
-		results <- &result{url, body, urls, err, depth}
+func Crawl(url string, depth int, fetcher Fetcher, fetchedUrl FetchedUrl) {
+	// cacheが存在すればリクエストを送らない
+	if fetchedUrl.Exists(url) || depth <= 0 {
+		return
 	}
 
-	go fetch(url, depth)
-	fetched[url] = true
+	ch := make(chan []string)
+	go Fetch(url, ch)
+	fetchedUrl.Add(url)
+	urls := <-ch
 
-	// 1 url is currently being fetched in background, loop while fetching
-	for fetching := 1; fetching > 0; fetching-- {
-		res := <-results
-
-		// skip failed fetches
-		if res.err != nil {
-			fmt.Println(res.err)
-			continue
-		}
-
-		fmt.Printf("found: %s %q\n", res.url, res.body)
-
-		// follow links if depth has not been exhausted
-		if res.depth > 0 {
-			for _, u := range res.urls {
-				// don't attempt to re-fetch known url, decrement depth
-				if !fetched[u] {
-					fetching++
-					go fetch(u, res.depth-1)
-					fetched[u] = true
-				}
-			}
-		}
+	for _, u := range urls {
+		Crawl(u, depth-1, fetcher, fetchedUrl)
 	}
-
-	close(results)
+	return
 }
 
 func main() {
-	Crawl("http://golang.org/", 4, fetcher)
+	fetchedUrl := FetchedUrl{url: make(map[string]bool)}
+	Crawl("http://golang.org/", 4, fetcher, fetchedUrl)
+}
+
+func Fetch(url string, ch chan []string) {
+	body, urls, err := fetcher.Fetch(url)
+	if err != nil {
+		fmt.Println(err)
+		close(ch)
+		return
+	}
+	fmt.Printf("found: %s %q\n", url, body)
+	ch <- urls
+	close(ch)
 }
 
 // fakeFetcher is Fetcher that returns canned results.
@@ -70,15 +78,15 @@ type fakeResult struct {
 	urls []string
 }
 
-func (f *fakeFetcher) Fetch(url string) (string, []string, error) {
-	if res, ok := (*f)[url]; ok {
+func (f fakeFetcher) Fetch(url string) (string, []string, error) {
+	if res, ok := f[url]; ok {
 		return res.body, res.urls, nil
 	}
 	return "", nil, fmt.Errorf("not found: %s", url)
 }
 
 // fetcher is a populated fakeFetcher.
-var fetcher = &fakeFetcher{
+var fetcher = fakeFetcher{
 	"http://golang.org/": &fakeResult{
 		"The Go Programming Language",
 		[]string{
